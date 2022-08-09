@@ -29,7 +29,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import cv2
 import functools
-from operator import xor, add, rshift, lshift
+from operator import xor, lshift
 from mtcnn import MTCNN
 import numpy
 import tensorflow as tf
