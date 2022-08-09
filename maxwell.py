@@ -32,7 +32,6 @@ import functools
 from operator import xor, lshift
 from mtcnn import MTCNN
 import numpy
-import tensorflow as tf
 
 def DCT(gs_part_img):
     imf = numpy.float32(gs_part_img)/255.0
@@ -44,31 +43,30 @@ img = cv2.cvtColor(cv2.imread('Self_New_Photo.jpg'), cv2.COLOR_BGR2RGB)
 detecteor = MTCNN()
 
 jobj = detecteor.detect_faces(img)
-# print(tf.config.list_physical_devices('GPU'))
 
 x, y, w, h = jobj[0]['box']
-
-# w = x1-x0
-# h = y1-y0
 
 cv2.rectangle(img, (x,y),(x+w,y+h), color=(0,0,255) )
 
 new_img = img[y:y+h , x:x+w]  # After cropping the image
 # cv2.imshow('Img', new_img)
 
-red_img = cv2.resize(new_img, (120, 120), interpolation=cv2.INTER_LINEAR, )
+red_img = cv2.resize(new_img, (120, 120), interpolation=cv2.INTER_LINEAR, )  #After resizing by applying bi-linear interpolation. 
 # cv2.imshow('Img', red_img)
 
-gs_img = cv2.cvtColor(red_img, cv2.COLOR_BGR2GRAY)
+gs_img = cv2.cvtColor(red_img, cv2.COLOR_BGR2GRAY)  # After that, converting to grayscale.
 # cv2.imshow('Img', gs_img)
 
-bl_img = cv2.GaussianBlur(gs_img, (3,3), 0.1)
+bl_img = cv2.GaussianBlur(gs_img, (3,3), 0.1)   # Gaussian blur to smoothen the image.
 # cv2.imshow('Img', bl_img)
 
-fin_img = bl_img
+fin_img = bl_img  # Final image after all the pre-processing
 
+# Image is then broken down into 4 block - each of 60x60.
 a1, a3, a2, a4 = fin_img[0:60, 0:60], fin_img[60:120, 0:60], fin_img[0:60, 60:120], fin_img[60:120, 60:120]
 # cv2.imshow('Img', a4) 
+
+# Discrete Cosine Transform is applied to each of the blocks to obtain the frequency distribution.
 
 f_a1 = DCT(a1)
 # cv2.imshow('Img', f_a1)
@@ -81,6 +79,9 @@ f_a3 = DCT(a3)
 
 f_a4 = DCT(a4)
 # cv2.imshow('Img', f_a4)
+
+# Keypoint detection using Scale Invariant Feature Transform(SIFT)
+
 sift = cv2.SIFT_create()
 kp_f_a1, des_f_a1 = map(list, sift.detectAndCompute(f_a1, None))
 
@@ -90,8 +91,9 @@ kp_f_a3, des_f_a3 = map(list, sift.detectAndCompute(f_a3, None))
 
 kp_f_a4, des_f_a4 = map(list, sift.detectAndCompute(f_a4, None))
 
-numpy.random.seed(10)
+numpy.random.seed(10)  # Seed to 'control' the randomness.
 
+# The keypoints array are then shuffled individually and then added.
 numpy.random.shuffle(kp_f_a1)
 
 numpy.random.shuffle(kp_f_a2)
@@ -100,17 +102,21 @@ numpy.random.shuffle(kp_f_a3)
 
 numpy.random.shuffle(kp_f_a4)
 
+# Here, the keypoint objects are converted to coordinates.
 
 loc_kp_f_a1 = cv2.KeyPoint_convert(kp_f_a1)
 loc_kp_f_a2 = cv2.KeyPoint_convert(kp_f_a2)
 loc_kp_f_a3 = cv2.KeyPoint_convert(kp_f_a3)
 loc_kp_f_a4 = cv2.KeyPoint_convert(kp_f_a4)
 
+# Now, individual fingerprints are made by reducing the keypoint coordinates by applying left-bitshift operation. 
+
 fingerprint_1 = [functools.reduce(lshift, bytes(i)) for i in loc_kp_f_a1]
 fingerprint_2 = [functools.reduce(lshift, bytes(i)) for i in loc_kp_f_a2]
 fingerprint_3 = [functools.reduce(lshift, bytes(i)) for i in loc_kp_f_a3]
 fingerprint_4 = [functools.reduce(lshift, bytes(i)) for i in loc_kp_f_a4]
 
+# The fingerprints are shuffled and appended to construct an array of fingerprints. This is the longer fingerprint.  
 numpy.random.shuffle(fingerprint_1)
 
 numpy.random.shuffle(fingerprint_2)
@@ -122,8 +128,11 @@ numpy.random.shuffle(fingerprint_4)
 nd_arr = fingerprint_1 + fingerprint_2 + fingerprint_3 + fingerprint_4
 # print(nd_arr)
 
+# The shorter fingerprint is made by using the longer fingerprint as seed for Mersenne Twister PRNG(MT19937).
+
 bit_gen = numpy.random.MT19937(numpy.random.SeedSequence(nd_arr))
 
+# The key is reduced by taking(say 10 random numbers) and applying XOR to each consecutive elements. 
 one_fg = functools.reduce(xor,bit_gen.random_raw(10))
 
 print(one_fg)
